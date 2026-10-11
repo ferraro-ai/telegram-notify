@@ -6,7 +6,7 @@ import os
 import sys
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 from urllib.error import HTTPError, URLError
 
 from telegram_notify import (
@@ -220,19 +220,38 @@ class CLITests(unittest.TestCase):
                    {"my_chat_member": {"chat": {"id": -7, "type": "group", "title": "Dev"}}}]
         with patch.object(sys, "argv", ["telegram-notify", "chat-id", "--no-input"]), patch(
             "telegram_notify._core._resolve", return_value=TOKEN
-        ) as resolve, patch("telegram_notify._core._request", return_value=updates) as req, contextlib.redirect_stdout(io.StringIO()) as stdout:
+        ) as resolve, patch("telegram_notify._core._request", side_effect=[
+            {"username": "ferraro_dev_notify_bot"}, updates
+        ]) as req, contextlib.redirect_stdout(io.StringIO()) as stdout:
             self.assertEqual(main(), 0)
-        resolve.assert_called_once_with("TELEGRAM_BOT_TOKEN", None, False)
+        self.assertEqual(resolve.call_args_list, [
+            call("TELEGRAM_BOT_TOKEN", None, False), call("TELEGRAM_BOT_TOKEN", TOKEN, False)
+        ])
+        self.assertEqual(req.call_args_list[0], call(TOKEN, "getMe", {}, 5.0))
         self.assertNotIn("offset", req.call_args.args[2])
-        self.assertEqual(len(stdout.getvalue().splitlines()), 2)
+        self.assertEqual(len(stdout.getvalue().splitlines()), 3)
+        self.assertIn("Bot for this token: @ferraro_dev_notify_bot", stdout.getvalue())
         self.assertNotIn(TOKEN, stdout.getvalue())
 
-    def test_no_updates_explains_start_and_returns_failure(self):
+    def test_no_updates_identifies_the_bot_and_explains_fresh_message(self):
         with patch.object(sys, "argv", ["telegram-notify", "chat-id"]), patch(
             "telegram_notify._core._resolve", return_value=TOKEN
-        ), patch("telegram_notify._core._request", return_value=[]), contextlib.redirect_stdout(io.StringIO()) as stdout:
+        ), patch("telegram_notify._core._request", side_effect=[
+            {"username": "another_bot"}, []
+        ]), contextlib.redirect_stdout(io.StringIO()) as stdout:
             self.assertEqual(main(), 1)
-        self.assertIn("/start", stdout.getvalue())
+        self.assertIn("https://t.me/another_bot", stdout.getvalue())
+        self.assertIn("NEW message", stdout.getvalue())
+        self.assertIn("not chat history", stdout.getvalue())
+        self.assertNotIn(TOKEN, stdout.getvalue())
+
+    def test_identity_failure_stops_before_reading_updates(self):
+        with patch.object(sys, "argv", ["telegram-notify", "chat-id"]), patch(
+            "telegram_notify._core._resolve", return_value=TOKEN
+        ), patch("telegram_notify._core._request", side_effect=TelegramError("Telegram HTTP 401.")) as req, contextlib.redirect_stderr(io.StringIO()) as stderr:
+            self.assertEqual(main(), 1)
+        req.assert_called_once_with(TOKEN, "getMe", {}, 5.0)
+        self.assertNotIn(TOKEN, stderr.getvalue())
 
     def test_notebook_chat_discovery_uses_secrets_without_chat_configuration(self):
         updates = [{"message": {"chat": {"id": 42, "type": "private", "first_name": "Артур"}}}]

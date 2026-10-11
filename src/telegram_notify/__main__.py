@@ -3,6 +3,7 @@
 import argparse
 import sys
 
+from . import _core
 from ._core import ConfigurationError, TelegramError, configure, get_chat_ids
 
 
@@ -22,9 +23,21 @@ def main() -> int:
             client.send("✅ Telegram notifications are working.", raise_on_error=True)
             print("Test notification sent.")
             return 0
-        chats = get_chat_ids(allow_prompt=not args.no_input)
+        token = _core._resolve("TELEGRAM_BOT_TOKEN", None, not args.no_input)
+        _core._validate_token(token)
+        bot = _core._request(token, "getMe", {}, 5.0)
+        if not isinstance(bot, dict) or not isinstance(bot.get("username"), str):
+            raise TelegramError("Invalid bot identity response from Telegram.")
+        username = bot["username"]
+        print(f"Bot for this token: @{username}", flush=True)
+        chats = get_chat_ids(token=token, allow_prompt=False)
         if not chats:
-            print("No chats found. Send /start to your bot, then run this command again.")
+            print(
+                f"No pending chat messages. Send a NEW message (e.g. 'ping') to "
+                f"https://t.me/{username}, then run this command again.\n"
+                "This reads pending updates, not chat history. If another program "
+                "uses this token, pause its update polling while finding your chat ID."
+            )
             return 1
         for chat_id, label in chats.items():
             # repr prevents names from injecting new terminal lines/controls.
