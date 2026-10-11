@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-notify"
+version = "0.1.0"
+description = "Small Telegram notifier for Python jobs and notebooks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+notebook = ["ipython>=8"]
+
+[project.scripts]
+telegram-notify = "telegram_notify.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
