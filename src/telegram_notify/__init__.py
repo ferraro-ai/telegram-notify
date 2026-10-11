@@ -21,4 +21,4 @@ __all__ = [
     "get_chat_ids",
     "notify",
 ]
-__version__ = "0.1.0"
+__version__ = "0.1.1"

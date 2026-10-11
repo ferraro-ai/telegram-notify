@@ -87,6 +87,52 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(ConfigurationError):
                 configure()
 
+    def test_ide_console_without_tty_never_enters_native_getpass(self):
+        hidden = Mock(side_effect=AssertionError("Native getpass would hang"))
+        hidden.__module__ = "getpass"
+        stdin = Mock()
+        stdin.isatty.return_value = False
+        with patch("getpass.getpass", hidden), patch.object(sys, "stdin", stdin), patch(
+            "builtins.input", side_effect=AssertionError("Must not echo the secret")
+        ):
+            with self.assertRaisesRegex(ConfigurationError, "PyCharm.*Terminal"):
+                configure()
+        hidden.assert_not_called()
+
+    def test_terminal_getpass_shows_notice_and_reads_token_securely(self):
+        hidden = Mock(return_value=TOKEN)
+        hidden.__module__ = "getpass"
+        stdin = Mock()
+        stdin.isatty.return_value = True
+        with patch("getpass.getpass", hidden), patch.object(sys, "stdin", stdin), patch(
+            "builtins.input", return_value="42"
+        ), contextlib.redirect_stdout(io.StringIO()) as stdout:
+            client = configure()
+        self.assertEqual(client.token, TOKEN)
+        hidden.assert_called_once_with("TELEGRAM_BOT_TOKEN: ")
+        self.assertIn("waiting for hidden input", stdout.getvalue())
+        self.assertNotIn(TOKEN, stdout.getvalue())
+
+    def test_notebook_password_reader_works_without_tty(self):
+        hidden = Mock(return_value=TOKEN)
+        hidden.__module__ = "ipykernel.kernelbase"
+        stdin = Mock()
+        stdin.isatty.return_value = False
+        with patch("getpass.getpass", hidden), patch.object(sys, "stdin", stdin), patch(
+            "builtins.input", return_value="42"
+        ), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(configure().token, TOKEN)
+        hidden.assert_called_once()
+
+    def test_env_token_in_ide_console_skips_password_prompt(self):
+        os.environ.update(TELEGRAM_BOT_TOKEN=TOKEN, TELEGRAM_CHAT_ID="42")
+        stdin = Mock()
+        stdin.isatty.return_value = False
+        with patch.object(sys, "stdin", stdin), patch(
+            "getpass.getpass", side_effect=AssertionError("Unexpected prompt")
+        ):
+            self.assertEqual(configure().token, TOKEN)
+
     def test_colab_missing_or_denied_secret_falls_back(self):
         userdata = types.ModuleType("google.colab.userdata")
         userdata.get = Mock(side_effect=RuntimeError("Access denied"))

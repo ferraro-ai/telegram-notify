@@ -63,6 +63,29 @@ def _colab_secret(name: str) -> str | None:
         return None
 
 
+def _prompt_token() -> str:
+    reader = getpass.getpass
+    # The standard reader may use /dev/tty or msvcrt rather than the IDE's
+    # console, leaving Run/Debug waiting without a visible prompt. Notebook
+    # kernels supply their own getpass reader and must keep using that reader.
+    if getattr(reader, "__module__", "getpass") == "getpass":
+        try:
+            terminal = sys.stdin is not None and sys.stdin.isatty()
+        except (AttributeError, OSError):
+            terminal = False
+        if not terminal:
+            raise ConfigurationError(
+                "Hidden token input requires a terminal. In PyCharm use the Terminal "
+                "tool window, or set TELEGRAM_BOT_TOKEN in Run > Edit Configurations "
+                "> Environment variables."
+            )
+    print("telegram-notify: TELEGRAM_BOT_TOKEN is missing; waiting for hidden input.", flush=True)
+    # Refuse getpass's echoing fallback when hidden input is unavailable.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        return reader("TELEGRAM_BOT_TOKEN: ").strip()
+
+
 def _resolve(name: str, explicit: str | int | None, allow_prompt: bool) -> str:
     if explicit is not None:
         value = str(explicit).strip()
@@ -71,10 +94,7 @@ def _resolve(name: str, explicit: str | int | None, allow_prompt: bool) -> str:
         if not value and allow_prompt:
             try:
                 if name == "TELEGRAM_BOT_TOKEN":
-                    # Refuse getpass's echoing fallback when hidden input is unavailable.
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("error", getpass.GetPassWarning)
-                        value = getpass.getpass(f"{name}: ").strip()
+                    value = _prompt_token()
                 else:
                     value = input(f"{name}: ").strip()
             except (EOFError, OSError, getpass.GetPassWarning):

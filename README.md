@@ -20,6 +20,7 @@ python -m telegram_notify test
 Для каждого значения: Colab Secrets → окружение → ввод (токен скрыт).
 В Colab разреши ноутбуку доступ к секретам. Значения не сохраняются; `.env` автоматически не загружается.
 Внутри ноутбука получить ID можно так: `from telegram_notify import get_chat_ids; get_chat_ids()`.
+В PyCharm Run/Debug скрытый ввод может быть недоступен: используй **Terminal** либо задай переменные в **Run → Edit Configurations → Environment variables**.
 
 ```python
 from telegram_notify import configure, notify, enable_notebook_errors
