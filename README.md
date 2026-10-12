@@ -6,8 +6,6 @@
 pip install "git+https://github.com/ferraro-ai/telegram-notify.git"
 ```
 
-Для приватной репы нужен доступ GitHub; можно скачать/клонировать её и выполнить `pip install .`.
-
 Создай бота через [@BotFather](https://t.me/BotFather) (`/newbot`), открой своего бота и отправь `/start`.
 Задай `TELEGRAM_BOT_TOKEN`, затем получи ID своего чата:
 
@@ -28,10 +26,10 @@ python -m telegram_notify test
 from telegram_notify import configure, notify, enable_notebook_errors
 
 configure()
-enable_notebook_errors("Обучение Айвы v0.5")  # необязательно
+enable_notebook_errors("Запуск задачи")  # необязательно
 
 # После нужной ячейки или в конце ноутбука:
-notify("✅ Обучение завершено; val_loss=2.66")
+notify("✅ Задача завершена")
 ```
 
 Ошибки ячеек: контекст, номер ячейки, тип и описание до 800 символов (`max_error_chars`), без stacktrace.
